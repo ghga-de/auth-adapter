@@ -16,6 +16,7 @@
 """Manage request and response headers"""
 
 import json
+import logging
 from collections.abc import Callable
 
 from fastapi import Request, Response, status
@@ -23,6 +24,8 @@ from fastapi import Request, Response, status
 from ..core.session_store import Session
 
 __all__ = ["get_bearer_token", "session_to_header", "pass_auth_response"]
+
+log = logging.getLogger(__name__)
 
 
 def get_bearer_token(*header_values: str | None) -> str | None:
@@ -78,4 +81,5 @@ def pass_auth_response(request: Request, authorization: str | None = None) -> Re
             headers[header] = ""
     if authorization:
         headers["Authorization"] = authorization
+    log.debug("Authorization header in response: %s", authorization)
     return Response(status_code=status.HTTP_200_OK, headers=headers)

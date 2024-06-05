@@ -19,6 +19,7 @@ Note: If a path_prefix is used for the Emissary AuthService,
 then this must be also specified in the config setting api_root_path.
 """
 
+import logging
 from typing import Annotated
 
 from fastapi import (
@@ -69,6 +70,8 @@ from .basic import get_basic_auth_dependency
 from .dto import TOTPTokenResponse
 from .headers import get_bearer_token, pass_auth_response, session_to_header
 
+log = logging.getLogger(__name__)
+
 app = FastAPI(title=TITLE, description=DESCRIPTION, version=VERSION)
 configure_app(app, config=CONFIG)
 
@@ -96,6 +99,7 @@ def add_allowed_route(route: str, write: bool = False):
         authorization: Annotated[str | None, Header()] = None,
     ) -> Response:
         """Unprotected route."""
+        log.debug("Unprotected route: %s", route)
         return pass_auth_response(request, authorization)
 
 
@@ -128,6 +132,7 @@ async def login(  # noqa: C901, PLR0913
     x_authorization: Annotated[str | None, Header()] = None,
 ) -> Response:
     """Create a new or get an existing user session."""
+    log.debug("Calling the user login endpoint with session=%r", session)
     if session:
         session_created = False
     else:
@@ -206,6 +211,7 @@ async def logout(
     session: SessionDependency,
 ) -> Response:
     """End the user session."""
+    log.debug("Calling the user logout endpoint with session=%r", session)
     if session:
         await session_store.delete_session(session.session_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -225,12 +231,15 @@ async def post_user(
     session: SessionDependency,
 ) -> Response:
     """Register a user."""
+    log.debug("Calling the user registration endpoint with session=%r", session)
     if not session:
+        log.debug("User registration attempt without login.")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Not logged in"
         )
     await session_store.save_session(session)
     internal_token = internal_token_from_session(session)
+    log.debug("User registration attempt yields internal token %s", internal_token)
     return pass_auth_response(request, f"Bearer {internal_token}")
 
 
@@ -387,9 +396,12 @@ async def ext_auth(
     If a user session exists and is two-factor-authenticated, then an internal
     authentication token will be added to the response.
     """
+    log.debug("ExtAuth general route: %s", request.url.path)
     if session:
+        log.debug("ExtAuth with session=%s", session)
         await session_store.save_session(session)
         if session.state is SessionState.AUTHENTICATED:
             internal_token = internal_token_from_session(session)
             return pass_auth_response(request, f"Bearer {internal_token}")
+    log.debug("ExtAuth without session")
     return pass_auth_response(request)

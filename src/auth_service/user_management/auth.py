@@ -16,11 +16,13 @@
 
 """Helper dependencies for requiring authentication and authorization."""
 
+import logging
 from functools import partial
 from typing import Annotated
 
 from fastapi import Depends, Security
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.security import HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer as DefaultHTTPBearer
 from ghga_service_commons.auth.ghga import (
     AuthContext,
     GHGAAuthContextProvider,
@@ -29,13 +31,25 @@ from ghga_service_commons.auth.ghga import (
 from ghga_service_commons.auth.policies import (
     require_auth_context_using_credentials,
 )
+from starlette.requests import Request
 
 from auth_service.config import CONFIG
 
 __all__ = ["UserAuthContext", "StewardAuthContext"]
 
 
+log = logging.getLogger(__name__)
+
 auth_provider = GHGAAuthContextProvider(config=CONFIG, context_class=AuthContext)
+
+
+class HTTPBearer(DefaultHTTPBearer):
+    """HTTPBearer with logging."""
+
+    async def __call__(self, request: Request) -> HTTPAuthorizationCredentials | None:
+        authorization = request.headers.get("Authorization")
+        log.debug("Authorization header: %s", authorization)
+        return await super().__call__(request)
 
 
 async def require_auth_context(

@@ -16,6 +16,7 @@
 
 """FastAPI dependencies for the auth adapter"""
 
+import logging
 from typing import Annotated
 
 from fastapi import HTTPException, Request, status
@@ -41,6 +42,8 @@ __all__ = [
     "SessionStoreDependency",
     "SessionDependency",
 ]
+
+log = logging.getLogger(__name__)
 
 SESSION_COOKIE = "session"
 CSRF_TOKEN_HEADER = "X-CSRF-Token"  # noqa: S105
@@ -69,15 +72,19 @@ async def get_session(
     Also checks the CSRF token if this is a write request.
     """
     session_id = request.cookies.get(SESSION_COOKIE)
+    log.debug("get_session: id=%s", session_id)
     if not session_id:
         return None
     session = await store.get_session(session_id)
+    log.debug("get_session: session=%r", session_id)
     if not session:
         return None
     method = request.method
     if method in WRITE_METHODS:
         csrf_token = request.headers.get(CSRF_TOKEN_HEADER)
+        log.debug("get_session: csrf_token=%s", csrf_token)
         if not csrf_token or csrf_token != session.csrf_token:
+            log.debug("get_session: invalid CSRF token")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or missing CSRF token",
